@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhishGuard - Phishing & Scam Link Analyzer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+    h1 {
+      margin-top: 0;
+      color: #38bdf8;
+      font-size: 24px;
+    }
+    p.subtitle {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 110px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #f8fafc;
+      font-size: 15px;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+    button {
+      margin-top: 15px;
+      width: 100%;
+      padding: 12px;
+      background: #0284c7;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0369a1;
+    }
+    .result-box {
+      margin-top: 25px;
+      padding: 18px;
+      border-radius: 8px;
+      display: none;
+    }
+    .safe { background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; }
+    .warning { background: rgba(234, 179, 8, 0.15); border: 1px solid #eab308; }
+    .danger { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; }
+    ul { margin: 10px 0 0 20px; padding: 0; }
+    li { margin-bottom: 6px; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🛡️ PhishGuard Analyzer</h1>
+  <p class="subtitle">Paste a suspicious URL, SMS, or WhatsApp forward to check for phishing & scam patterns.</p>
+  
+  <textarea id="inputText" placeholder="Example: Dear customer, your SBI KYC is pending. Click http://bit.ly immediately to avoid account block..."></textarea>
+  <button onclick="analyzeInput()">Analyze Risk</button>
+
+  <div id="resultBox" class="result-box">
+    <h3 id="riskTitle" style="margin-top:0;"></h3>
+    <p id="riskScore" style="font-weight:bold;"></p>
+    <ul id="flagsList"></ul>
+  </div>
+</div>
+
+<script>
+  function analyzeInput() {
+    const text = document.getElementById('inputText').value.trim();
+    if (!text) {
+      alert("Please paste a URL or message first!");
+      return;
+    }
+
+    let score = 0;
+    let flags = [];
+    const lowerText = text.toLowerCase();
+
+    // 1. Check for insecure HTTP links
+    if (/http:\/\/[^\s]+/i.test(text)) {
+      score += 25;
+      flags.push("Uses unencrypted HTTP instead of secure HTTPS.");
+    }
+
+    // 2. Check for IP address in URL (common phishing tactic)
+    if (/https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(text)) {
+      score += 40;
+      flags.push("URL uses a raw IP address instead of a verified domain name.");
+    }
+
+    // 3. Check for URL shorteners hiding the real destination
+    if (/(bit\.ly|tinyurl\.com|goo\.gl|t\.co|is\.gd|rb\.gy)/i.test(lowerText)) {
+      score += 25;
+      flags.push("Contains a shortened URL that hides the true destination.");
+    }
+
+    // 4. Check for suspicious top-level domains (TLDs)
+    if (/\.(xyz|top|tk|ml|ga|cf|gq|click|loan)(\/|\s|$)/i.test(lowerText)) {
+      score += 30;
+      flags.push("Uses a high-risk domain extension (.xyz, .tk, .click, etc.).");
+    }
+
+    // 5. Check for Indian banking/UPI scam urgency keywords
+    const scamKeywords = ['kyc', 'account block', 'suspended', 'lottery', 'prize', 'urgent', 'verify immediately', 'pan card update', 'electricity disconnect', 'refund'];
+    const foundKeywords = scamKeywords.filter(word => lowerText.includes(word));
+    if (foundKeywords.length > 0) {
+      score += foundKeywords.length * 15;
+      flags.push(`Contains high-urgency scam triggers: "${foundKeywords.join(', ')}".`);
+    }
+
+    // 6. Check for '@' symbol trick in URLs
+    if (/https?:\/\/[^\s]*@[^\s]*/.test(text)) {
+      score += 35;
+      flags.push("URL contains an '@' symbol, often used to redirect users to fake sites.");
+    }
+
+    // Cap score at 100
+    score = Math.min(score, 100);
+
+    // Display results
+    const resultBox = document.getElementById('resultBox');
+    const riskTitle = document.getElementById('riskTitle');
+    const riskScore = document.getElementById('riskScore');
+    const flagsList = document.getElementById('flagsList');
+
+    resultBox.style.display = 'block';
+    resultBox.className = 'result-box';
+    flagsList.innerHTML = '';
+
+    if (score >= 50) {
+      resultBox.classList.add('danger');
+      riskTitle.innerText = "🚨 High Risk: Likely Phishing / Scam";
+    } else if (score >= 20) {
+      resultBox.classList.add('warning');
+      riskTitle.innerText = "⚠️ Moderate Risk: Suspicious Elements Found";
+    } else {
+      resultBox.classList.add('safe');
+      riskTitle.innerText = "✅ Low Risk: No Common Scam Patterns Detected";
+      flags.push("No obvious heuristic red flags found. Always verify the sender before sharing OTPs or passwords.");
+    }
+
+    riskScore.innerText = `Threat Score: ${score} / 100`;
+    flags.forEach(flag => {
+      const li = document.createElement('li');
+      li.innerText = flag;
+      flagsList.appendChild(li);
+    });
+  }
+</script>
+
+</body>
+</html>
